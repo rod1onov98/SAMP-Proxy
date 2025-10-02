@@ -143,7 +143,7 @@ int main(int argc, char* argv[]) {
     int srcLen = sizeof(src);
 
     while (true) {
-        // recvfrom: receives both client->proxy and server->proxy packets (we distinguish by source IP)
+        // recvfrom: receives both client->proxy and server->proxy packets (we distinguish by source ip)
         int recvLen = recvfrom(s, (char*)buf, BUF_SZ, 0, (sockaddr*)&src, &srcLen);
         if (recvLen == SOCKET_ERROR) {
             std::cerr << "recvfrom error: " << WSAGetLastError() << "\n";
@@ -250,3 +250,4 @@ int main(int argc, char* argv[]) {
     WSACleanup();
     return 0;
 }
+
