@@ -1,4 +1,14 @@
-#include "main.h"
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iostream>
+#include <string>
+#include <map>
+#include <vector>
+#include <algorithm>
+#include <chrono>
+#include <iomanip>
+#include <cstring>
+#include <bitset>
 
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -24,7 +34,7 @@ unsigned char sampDecrTable[256] =
     0x6C, 0x70, 0x08, 0x99, 0x45, 0x56, 0x76, 0xF9, 0x9A, 0x97, 0x19, 0x72, 0x5C, 0x02, 0x8F, 0x58
 };
 
-enum PacketEnumeration
+enum pkt_ids
 {
     ID_INTERNAL_PING = 6,
     ID_PING,
@@ -80,7 +90,7 @@ enum PacketEnumeration
     ID_USER_INTERFACE_SYNC = 252
 };
 
-std::map<int, std::string> packetNames = {
+std::map<int, std::string> pkt_names = {
     {6,"ID_INTERNAL_PING"},{7,"ID_PING"},{8,"ID_PING_OPEN_CONNECTIONS"},{9,"ID_CONNECTED_PONG"},
     {10,"ID_REQUEST_STATIC_DATA"},{11,"ID_CONNECTION_REQUEST"},{12,"ID_AUTH_KEY"},{14,"ID_BROADCAST_PINGS"},
     {15,"ID_SECURED_CONNECTION_RESPONSE"},{16,"ID_SECURED_CONNECTION_CONFIRMATION"},{17,"ID_RPC_MAPPING"},
@@ -182,7 +192,7 @@ void hexdump(const unsigned char* data, int len) {
     std::cout << std::dec << "\n";
 }
 
-bool unKyretardizedatagram(unsigned char* buf, int len, int port, int unk) {
+bool samp_decrypt(unsigned char* buf, int len, int port, int unk) {
     unsigned char bChecksumEncr = buf[0];
 
     len--;
@@ -222,7 +232,7 @@ bool unKyretardizedatagram(unsigned char* buf, int len, int port, int unk) {
     return true;
 }
 
-void analyzePlayerSync(const unsigned char* data, int len, bool fromServer) {
+void onfootsync(const unsigned char* data, int len, bool fromServer) {
     if (len < 2) return;
 
     BitStream bs(data, len);
@@ -265,7 +275,7 @@ void analyzePlayerSync(const unsigned char* data, int len, bool fromServer) {
     std::cout << "\n";
 }
 
-void analyzeVehicleSync(const unsigned char* data, int len, bool fromServer) {
+void vehsync(const unsigned char* data, int len, bool fromServer) {
     if (len < 2) return;
 
     BitStream bs(data, len);
@@ -307,7 +317,7 @@ void analyzeVehicleSync(const unsigned char* data, int len, bool fromServer) {
     std::cout << "\n";
 }
 
-void analyzeAimSync(const unsigned char* data, int len, bool fromServer) {
+void aimsync(const unsigned char* data, int len, bool fromServer) {
     if (len < 2) return;
 
     BitStream bs(data, len);
@@ -336,7 +346,7 @@ void analyzeAimSync(const unsigned char* data, int len, bool fromServer) {
     std::cout << "\n";
 }
 
-void analyzeBulletSync(const unsigned char* data, int len, bool fromServer) {
+void bulletsync(const unsigned char* data, int len, bool fromServer) {
     if (len < 2) return;
 
     BitStream bs(data, len);
@@ -367,7 +377,7 @@ void analyzeBulletSync(const unsigned char* data, int len, bool fromServer) {
     std::cout << "\n";
 }
 
-void analyzeStatsUpdate(const unsigned char* data, int len, bool fromServer) {
+void statssync(const unsigned char* data, int len, bool fromServer) {
     if (len < 2) return;
 
     BitStream bs(data, len);
@@ -385,22 +395,22 @@ void analyzeStatsUpdate(const unsigned char* data, int len, bool fromServer) {
     std::cout << "\n";
 }
 
-void analyzeDetailedPacket(const unsigned char* data, int len, int packetId, bool fromServer) {
+void allsync(const unsigned char* data, int len, int packetId, bool fromServer) {
     switch (packetId) {
     case ID_PLAYER_SYNC:
-        analyzePlayerSync(data, len, fromServer);
+        onfootsync(data, len, fromServer);
         break;
     case ID_VEHICLE_SYNC:
-        analyzeVehicleSync(data, len, fromServer);
+        vehsync(data, len, fromServer);
         break;
     case ID_AIM_SYNC:
-        analyzeAimSync(data, len, fromServer);
+        aimsync(data, len, fromServer);
         break;
     case ID_BULLET_SYNC:
-        analyzeBulletSync(data, len, fromServer);
+        bulletsync(data, len, fromServer);
         break;
     case ID_STATS_UPDATE:
-        analyzeStatsUpdate(data, len, fromServer);
+        statssync(data, len, fromServer);
         break;
     case ID_MARKERS_SYNC:
         std::cout << "[MARKERS SYNC]\n";
@@ -460,8 +470,7 @@ int main(int argc, char* argv[]) {
     inet_pton(AF_INET, remoteIp, &remote.sin_addr);
     remote.sin_port = htons(remotePort);
 
-    std::cout << "Proxy listening on " << listenIp << ":" << listenPort << " -> forwarding to " << remoteIp << ":" << remotePort << "\n";
-    std::cout << "Detailed packet analysis ENABLED\n\n";
+    std::cout << "listening on " << listenIp << ":" << listenPort << " -> forwarding to " << remoteIp << ":" << remotePort << "\n";
 
     // map clientaddr -> last active time (to forward server responses)
     struct ClientInfo {
@@ -489,7 +498,7 @@ int main(int argc, char* argv[]) {
 
         if (!fromServer) {
             // packet from client -> forward to server
-            std::cout << ">>> CLIENT -> SERVER from " << srcStr << ":" << ntohs(src.sin_port) << "  len=" << recvLen << "\n";
+            std::cout << ">>> c->s from " << srcStr << ":" << ntohs(src.sin_port) << "  len=" << recvLen << "\n";
 
             // record client as active
             bool found = false;
@@ -502,7 +511,7 @@ int main(int argc, char* argv[]) {
             if (!found) {
                 ClientInfo ci; ci.addr = src; ci.last = std::chrono::steady_clock::now();
                 clients.push_back(ci);
-                std::cout << "[INFO] new client registered: " << srcStr << ":" << ntohs(src.sin_port) << "\n";
+                std::cout << "[info] new client registered: " << srcStr << ":" << ntohs(src.sin_port) << "\n";
             }
 
             // forward to remote server
@@ -511,24 +520,24 @@ int main(int argc, char* argv[]) {
                 std::cerr << "sendto to remote failed: " << WSAGetLastError() << "\n";
             }
             else {
-                std::cout << "[FWD] -> server (" << sent << " bytes)\n";
+                std::cout << "[fdw] -> server (" << sent << " bytes)\n";
             }
 
             // try decrypt and analyze
-            if (unKyretardizedatagram(buf, recvLen, ntohs(src.sin_port), 0)) {
+            if (samp_decrypt(buf, recvLen, ntohs(src.sin_port), 0)) {
                 int id = (unsigned char)decrBuffer[0];
-                std::cout << "[DECRYPTED CLIENT->SERVER] ID=" << id;
-                if (packetNames.count(id)) std::cout << " (" << packetNames[id] << ")";
+                std::cout << "[decr c->s] id=" << id;
+                if (pkt_names.count(id)) std::cout << " (" << pkt_names[id] << ")";
                 std::cout << "\n";
 
                 // sync analysis from client
-                analyzeDetailedPacket(decrBuffer + 1, recvLen - 1, id, false);
+                allsync(decrBuffer + 1, recvLen - 1, id, false);
 
-                std::cout << "decrypted pkt dump hex:\n";
+                std::cout << "decrypted pkt dump:\n";
                 hexdump(decrBuffer, recvLen - 1);
             }
             else {
-                std::cout << "[NOT ENCRYPTED or checksum mismatch]\n";
+                std::cout << "checksum mismatch\n";
             }
 
         }
@@ -536,7 +545,7 @@ int main(int argc, char* argv[]) {
             // packet from server -> forward to most recent client
             char serverSrc[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &src.sin_addr, serverSrc, sizeof(serverSrc));
-            std::cout << "<<< SERVER -> PROXY from " << serverSrc << ":" << ntohs(src.sin_port) << "  len=" << recvLen << "\n";
+            std::cout << "<<< server->proxy from " << serverSrc << ":" << ntohs(src.sin_port) << "  len=" << recvLen << "\n";
 
             // prune old clients
             auto now = std::chrono::steady_clock::now();
@@ -545,7 +554,7 @@ int main(int argc, char* argv[]) {
                 clients.end());
 
             if (clients.empty()) {
-                std::cout << "[WARN] No clients known — dropping server packet\n";
+                std::cout << "[WARNING] no clients known dropping server packet\n";
             }
             else {
                 // choose most recent client
@@ -563,24 +572,24 @@ int main(int argc, char* argv[]) {
                     std::cerr << "sendto to client failed: " << WSAGetLastError() << "\n";
                 }
                 else {
-                    std::cout << "[FWD] -> client " << destStr << ":" << destPort << " (" << sent << " bytes)\n";
+                    std::cout << "[fwd] -> client " << destStr << ":" << destPort << " (" << sent << " bytes)\n";
                 }
 
                 // try decrypt and analyze server->client payload
-                if (unKyretardizedatagram(buf, recvLen, ntohs(src.sin_port), 0)) {
+                if (samp_decrypt(buf, recvLen, ntohs(src.sin_port), 0)) {
                     int id = (unsigned char)decrBuffer[0];
-                    std::cout << "[DECRYPTED SERVER->CLIENT] ID=" << id;
-                    if (packetNames.count(id)) std::cout << " (" << packetNames[id] << ")";
+                    std::cout << "[decr s->c] ID=" << id;
+                    if (pkt_names.count(id)) std::cout << " (" << pkt_names[id] << ")";
                     std::cout << "\n";
 
                     // sync analysis from server
-                    analyzeDetailedPacket(decrBuffer + 1, recvLen - 1, id, true);
+                    allsync(decrBuffer + 1, recvLen - 1, id, true);
 
-                    std::cout << "decrypted pkt dump hex:\n";
+                    std::cout << "decrypted pkt dump:\n";
                     hexdump(decrBuffer, recvLen - 1);
                 }
                 else {
-                    std::cout << "[NOT ENCRYPTED or checksum mismatch]\n";
+                    std::cout << "checksum mismatch\n";
                 }
             }
         }
@@ -593,4 +602,3 @@ int main(int argc, char* argv[]) {
     WSACleanup();
     return 0;
 }
-
