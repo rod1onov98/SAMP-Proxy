@@ -23,7 +23,7 @@ This tool is designed for network analysis, debugging, and educational purposes 
 C++ only
 
 # Usage
-main.exe <remote_server_ip> <remote_server_port>
+main.exe(or proxy.exe if you used build from release) <remote_server_ip> <remote_server_port>
 
 
 The program automatically detects your local IP and port, then starts capturing packets from the specified server.
