@@ -479,13 +479,13 @@ int main(int argc, char* argv[]) {
     };
     std::vector<ClientInfo> clients;
 
-    const int BUF_SZ = 65536;
-    unsigned char buf[BUF_SZ];
+    const int szbuf = 65536;
+    unsigned char buf[szbuf];
     sockaddr_in src{};
     int srcLen = sizeof(src);
 
     while (true) {
-        int recvLen = recvfrom(s, (char*)buf, BUF_SZ, 0, (sockaddr*)&src, &srcLen);
+        int recvLen = recvfrom(s, (char*)buf, szbuf, 0, (sockaddr*)&src, &srcLen);
         if (recvLen == SOCKET_ERROR) {
             std::cerr << "recvfrom error: " << WSAGetLastError() << "\n";
             break;
