@@ -18,11 +18,9 @@ Forwarding support – optionally forward captured packets for analysis or proxy
 
 This tool is designed for network analysis, debugging, and educational purposes within SA-MP environments.
 
-# Languages / Libraries Used
+# Languages Used
 
-C++
-
-Winsock2 (Windows networking API)
+C++ only
 
 # Usage
 main.exe <remote_server_ip> <remote_server_port>
