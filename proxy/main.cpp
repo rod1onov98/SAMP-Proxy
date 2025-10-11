@@ -1,14 +1,4 @@
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <iostream>
-#include <string>
-#include <map>
-#include <vector>
-#include <algorithm>
-#include <chrono>
-#include <iomanip>
-#include <cstring>
-#include <bitset>
+#include "main.h"
 
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -603,3 +593,4 @@ int main(int argc, char* argv[]) {
     WSACleanup();
     return 0;
 }
+
