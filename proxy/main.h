@@ -11,5 +11,6 @@
 #include <chrono>
 #include <iomanip>
 #include <cstring>
+#include <bitset>
 
 #pragma comment(lib, "Ws2_32.lib")
