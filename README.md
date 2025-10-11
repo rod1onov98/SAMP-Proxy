@@ -2,12 +2,6 @@
 
 SA:MP Packet Proxy is a lightweight packet sniffer and decryptor for San Andreas Multiplayer (SA:MP). It captures, decrypts, and displays network packets between the client and server in real-time, providing both hexadecimal.
 
-Key Features
-
-Automatic local IP and port detection – no manual configuration needed
-
-Remote server targeting – specify only the server IP and port
-
 # Full SA:MP decryption support
 
 Packet identification – recognizes common SA:MP packet IDs and displays their names
