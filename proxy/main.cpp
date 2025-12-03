@@ -108,82 +108,6 @@ std::map<int, std::string> pkt_names = {
     {212,"ID_SPECTATOR_SYNC"}
 };
 
-class BitStream {
-private:
-    const unsigned char* data;
-    size_t size;
-    size_t readOffset;
-    size_t bitOffset;
-
-public:
-    BitStream(const unsigned char* buf, size_t len)
-        : data(buf), size(len), readOffset(0), bitOffset(0) {
-    }
-
-    bool Read(uint8_t& value) {
-        if (readOffset >= size) return false;
-        value = data[readOffset++];
-        return true;
-    }
-
-    bool Read(uint16_t& value) {
-        if (readOffset + 1 >= size) return false;
-        value = (data[readOffset] << 8) | data[readOffset + 1];
-        readOffset += 2;
-        return true;
-    }
-
-    bool Read(uint32_t& value) {
-        if (readOffset + 3 >= size) return false;
-        value = (data[readOffset] << 24) | (data[readOffset + 1] << 16) |
-            (data[readOffset + 2] << 8) | data[readOffset + 3];
-        readOffset += 4;
-        return true;
-    }
-
-    bool Read(float& value) {
-        if (readOffset + 3 >= size) return false;
-        uint32_t temp = (data[readOffset] << 24) | (data[readOffset + 1] << 16) |
-            (data[readOffset + 2] << 8) | data[readOffset + 3];
-        memcpy(&value, &temp, sizeof(float));
-        readOffset += 4;
-        return true;
-    }
-
-    bool ReadBits(uint8_t& value, int bits) {
-        if (bits > 8 || readOffset >= size) return false;
-
-        if (bitOffset == 0) {
-            value = (data[readOffset] >> (8 - bits)) & ((1 << bits) - 1);
-            bitOffset = bits;
-        }
-        else {
-            int remainingBits = 8 - bitOffset;
-            if (bits <= remainingBits) {
-                value = (data[readOffset] >> (remainingBits - bits)) & ((1 << bits) - 1);
-                bitOffset += bits;
-                if (bitOffset == 8) {
-                    readOffset++;
-                    bitOffset = 0;
-                }
-            }
-            else {
-                uint8_t firstPart = data[readOffset] & ((1 << remainingBits) - 1);
-                readOffset++;
-                if (readOffset >= size) return false;
-                uint8_t secondPart = (data[readOffset] >> (8 - (bits - remainingBits))) & ((1 << (bits - remainingBits)) - 1);
-                value = (firstPart << (bits - remainingBits)) | secondPart;
-                bitOffset = bits - remainingBits;
-            }
-        }
-        return true;
-    }
-
-    size_t GetReadOffset() const { return readOffset; }
-    size_t GetNumberOfUnreadBits() const { return (size - readOffset) * 8 - bitOffset; }
-    void Reset() { readOffset = 0; bitOffset = 0; }
-};
-
 void hexdump(const unsigned char* data, int len) {
     for (int i = 0; i < len; ++i) {
         if (i && (i % 16) == 0) std::cout << "\n";
@@ -232,212 +156,6 @@ bool samp_decrypt(unsigned char* buf, int len, int port, int unk) {
     return true;
 }
 
-void onfootsync(const unsigned char* data, int len, bool fromServer) {
-    if (len < 2) return;
-
-    BitStream bs(data, len);
-    uint8_t syncId;
-    if (!bs.Read(syncId)) return;
-
-    std::cout << "[PLAYER SYNC] ";
-
-    if (!fromServer) {
-        // client -> server
-        uint16_t leftright, updown, keys;
-        float pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w;
-        uint8_t health, armour, weapon, specialaction;
-        float vel_x, vel_y, vel_z, surf_x, surf_y, surf_z;
-        uint16_t surf_flags;
-        uint32_t anim;
-
-        if (bs.Read(leftright) && bs.Read(updown) && bs.Read(keys) &&
-            bs.Read(pos_x) && bs.Read(pos_y) && bs.Read(pos_z) &&
-            bs.Read(quat_x) && bs.Read(quat_y) && bs.Read(quat_z) && bs.Read(quat_w) &&
-            bs.Read(health) && bs.Read(armour) && bs.Read(weapon) && bs.Read(specialaction) &&
-            bs.Read(vel_x) && bs.Read(vel_y) && bs.Read(vel_z) &&
-            bs.Read(surf_x) && bs.Read(surf_y) && bs.Read(surf_z) &&
-            bs.Read(surf_flags) && bs.Read(anim)) {
-
-            std::cout << "Pos: (" << pos_x << ", " << pos_y << ", " << pos_z << ") ";
-            std::cout << "Health: " << (int)health << " Armour: " << (int)armour << " ";
-            std::cout << "Weapon: " << (int)weapon << " Keys: 0x" << std::hex << keys << std::dec;
-        }
-    }
-    else {
-        // server -> client
-        uint16_t playerid;
-        if (bs.Read(playerid)) {
-            std::cout << "PlayerID: " << playerid << " ";
-        }
-
-        std::cout << "(server sync data)";
-    }
-    std::cout << "\n";
-}
-
-void vehsync(const unsigned char* data, int len, bool fromServer) {
-    if (len < 2) return;
-
-    BitStream bs(data, len);
-    uint8_t syncId;
-    if (!bs.Read(syncId)) return;
-
-    std::cout << "[VEHICLE SYNC] ";
-
-    if (!fromServer) {
-        // client -> server
-        uint16_t vehicleid, leftright, updown, keys;
-        float quat_x, quat_y, quat_z, quat_w, pos_x, pos_y, pos_z;
-        float vel_x, vel_y, vel_z, health;
-        uint8_t player_health, player_armour, weapon, siren, landinggear;
-        uint16_t trailer;
-        uint32_t hydra;
-
-        if (bs.Read(vehicleid) && bs.Read(leftright) && bs.Read(updown) && bs.Read(keys) &&
-            bs.Read(quat_x) && bs.Read(quat_y) && bs.Read(quat_z) && bs.Read(quat_w) &&
-            bs.Read(pos_x) && bs.Read(pos_y) && bs.Read(pos_z) &&
-            bs.Read(vel_x) && bs.Read(vel_y) && bs.Read(vel_z) &&
-            bs.Read(health) && bs.Read(player_health) && bs.Read(player_armour) &&
-            bs.Read(weapon) && bs.Read(siren) && bs.Read(landinggear) &&
-            bs.Read(trailer) && bs.Read(hydra)) {
-
-            std::cout << "VehicleID: " << vehicleid << " ";
-            std::cout << "pos: (" << pos_x << ", " << pos_y << ", " << pos_z << ") ";
-            std::cout << "health: " << health << " PlayerHP: " << (int)player_health;
-        }
-    }
-    else {
-        // server -> client
-        uint16_t playerid, vehicleid;
-        if (bs.Read(playerid) && bs.Read(vehicleid)) {
-            std::cout << "PlayerID: " << playerid << " VehicleID: " << vehicleid << " ";
-        }
-        std::cout << "(server sync data)";
-    }
-    std::cout << "\n";
-}
-
-void aimsync(const unsigned char* data, int len, bool fromServer) {
-    if (len < 2) return;
-
-    BitStream bs(data, len);
-    uint8_t syncId;
-    if (!bs.Read(syncId)) return;
-
-    std::cout << "[AIM SYNC] ";
-
-    if (fromServer) {
-        uint16_t playerid;
-        if (bs.Read(playerid)) {
-            std::cout << "PlayerID: " << playerid << " ";
-        }
-    }
-
-    uint8_t cam_mode;
-    float angle_x, angle_y, angle_z, pos_x, pos_y, pos_z, aim_z;
-
-    if (bs.Read(cam_mode) && bs.Read(angle_x) && bs.Read(angle_y) && bs.Read(angle_z) &&
-        bs.Read(pos_x) && bs.Read(pos_y) && bs.Read(pos_z) && bs.Read(aim_z)) {
-
-        std::cout << "cam: " << (int)cam_mode << " ";
-        std::cout << "angle: (" << angle_x << ", " << angle_y << ", " << angle_z << ") ";
-        std::cout << "pos: (" << pos_x << ", " << pos_y << ", " << pos_z << ")";
-    }
-    std::cout << "\n";
-}
-
-void bulletsync(const unsigned char* data, int len, bool fromServer) {
-    if (len < 2) return;
-
-    BitStream bs(data, len);
-    uint8_t syncId;
-    if (!bs.Read(syncId)) return;
-
-    std::cout << "[BULLET SYNC] ";
-
-    if (fromServer) {
-        uint16_t playerid;
-        if (bs.Read(playerid)) {
-            std::cout << "PlayerID: " << playerid << " ";
-        }
-    }
-
-    uint8_t type;
-    uint16_t id;
-    float origin_x, origin_y, origin_z, target_x, target_y, target_z;
-
-    if (bs.Read(type) && bs.Read(id) &&
-        bs.Read(origin_x) && bs.Read(origin_y) && bs.Read(origin_z) &&
-        bs.Read(target_x) && bs.Read(target_y) && bs.Read(target_z)) {
-
-        std::cout << "type: " << (int)type << " ID: " << id << " ";
-        std::cout << "origin: (" << origin_x << ", " << origin_y << ", " << origin_z << ") ";
-        std::cout << "target: (" << target_x << ", " << target_y << ", " << target_z << ")";
-    }
-    std::cout << "\n";
-}
-
-void statssync(const unsigned char* data, int len, bool fromServer) {
-    if (len < 2) return;
-
-    BitStream bs(data, len);
-    uint8_t syncId;
-    if (!bs.Read(syncId)) return;
-
-    std::cout << "[STATS UPDATE] ";
-
-    if (!fromServer) {
-        uint32_t money, drunk;
-        if (bs.Read(money) && bs.Read(drunk)) {
-            std::cout << "money: " << money << " drunk: " << drunk;
-        }
-    }
-    std::cout << "\n";
-}
-
-void allsync(const unsigned char* data, int len, int packetId, bool fromServer) {
-    switch (packetId) {
-    case ID_PLAYER_SYNC:
-        onfootsync(data, len, fromServer);
-        break;
-    case ID_VEHICLE_SYNC:
-        vehsync(data, len, fromServer);
-        break;
-    case ID_AIM_SYNC:
-        aimsync(data, len, fromServer);
-        break;
-    case ID_BULLET_SYNC:
-        bulletsync(data, len, fromServer);
-        break;
-    case ID_STATS_UPDATE:
-        statssync(data, len, fromServer);
-        break;
-    case ID_MARKERS_SYNC:
-        std::cout << "[MARKERS SYNC]\n";
-        break;
-    case ID_UNOCCUPIED_SYNC:
-        std::cout << "[UNOCCUPIED VEHICLE SYNC]\n";
-        break;
-    case ID_PASSENGER_SYNC:
-        std::cout << "[PASSENGER SYNC]\n";
-        break;
-    case ID_TRAILER_SYNC:
-        std::cout << "[TRAILER SYNC]\n";
-        break;
-    case ID_SPECTATOR_SYNC:
-        std::cout << "[SPECTATOR SYNC]\n";
-        break;
-    case ID_WEAPONS_UPDATE:
-        std::cout << "[WEAPONS UPDATE]\n";
-        break;
-    default:
-        if (packetId >= 200 && packetId <= 212) {
-            std::cout << "[SYNC PACKET " << packetId << "]\n";
-        }
-        break;
-    }
-}
-
 int main(int argc, char* argv[]) {
     if (argc < 3) {
         std::cout << "usage: " << argv[0] << " <remote_ip> <remote_port> [listen_ip] [listen_port]\n";
@@ -447,15 +165,12 @@ int main(int argc, char* argv[]) {
     int remotePort = std::stoi(argv[2]);
     const char* listenIp = (argc >= 4) ? argv[3] : "0.0.0.0";
     int listenPort = (argc >= 5) ? std::stoi(argv[4]) : remotePort;
-
     WSADATA wsa;
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
         std::cerr << "WSAStartup failed\n"; return 1;
     }
-
     SOCKET s = socket(AF_INET, SOCK_DGRAM, 0);
     if (s == INVALID_SOCKET) { std::cerr << "socket failed: " << WSAGetLastError() << "\n"; WSACleanup(); return 1; }
-
     sockaddr_in local{};
     local.sin_family = AF_INET;
     inet_pton(AF_INET, listenIp, &local.sin_addr);
@@ -463,43 +178,34 @@ int main(int argc, char* argv[]) {
     if (bind(s, (sockaddr*)&local, sizeof(local)) == SOCKET_ERROR) {
         std::cerr << "bind failed: " << WSAGetLastError() << "\n"; closesocket(s); WSACleanup(); return 1;
     }
-
     // remote addr struct
     sockaddr_in remote{};
     remote.sin_family = AF_INET;
     inet_pton(AF_INET, remoteIp, &remote.sin_addr);
     remote.sin_port = htons(remotePort);
-
     std::cout << "listening on " << listenIp << ":" << listenPort << " -> forwarding to " << remoteIp << ":" << remotePort << "\n";
-
     // map clientaddr -> last active time (to forward server responses)
     struct ClientInfo {
         sockaddr_in addr;
         std::chrono::steady_clock::time_point last;
     };
     std::vector<ClientInfo> clients;
-
     const int szbuf = 65536;
     unsigned char buf[szbuf];
     sockaddr_in src{};
     int srcLen = sizeof(src);
-
     while (true) {
         int recvLen = recvfrom(s, (char*)buf, szbuf, 0, (sockaddr*)&src, &srcLen);
         if (recvLen == SOCKET_ERROR) {
             std::cerr << "recvfrom error: " << WSAGetLastError() << "\n";
             break;
         }
-
         char srcStr[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &src.sin_addr, srcStr, sizeof(srcStr));
-
         bool fromServer = (src.sin_addr.s_addr == remote.sin_addr.s_addr && src.sin_port == remote.sin_port);
-
         if (!fromServer) {
             // packet from client -> forward to server
             std::cout << ">>> c->s from " << srcStr << ":" << ntohs(src.sin_port) << "  len=" << recvLen << "\n";
-
             // record client as active
             bool found = false;
             for (auto& c : clients) {
@@ -513,7 +219,6 @@ int main(int argc, char* argv[]) {
                 clients.push_back(ci);
                 std::cout << "[info] new client registered: " << srcStr << ":" << ntohs(src.sin_port) << "\n";
             }
-
             // forward to remote server
             int sent = sendto(s, (const char*)buf, recvLen, 0, (sockaddr*)&remote, sizeof(remote));
             if (sent == SOCKET_ERROR) {
@@ -522,17 +227,12 @@ int main(int argc, char* argv[]) {
             else {
                 std::cout << "[fdw] -> server (" << sent << " bytes)\n";
             }
-
             // try decrypt and analyze
             if (samp_decrypt(buf, recvLen, ntohs(src.sin_port), 0)) {
                 int id = (unsigned char)decrBuffer[0];
                 std::cout << "[decr c->s] id=" << id;
                 if (pkt_names.count(id)) std::cout << " (" << pkt_names[id] << ")";
                 std::cout << "\n";
-
-                // sync analysis from client
-                allsync(decrBuffer + 1, recvLen - 1, id, false);
-
                 std::cout << "decrypted pkt dump:\n";
                 hexdump(decrBuffer, recvLen - 1);
             }
@@ -546,7 +246,6 @@ int main(int argc, char* argv[]) {
             char serverSrc[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &src.sin_addr, serverSrc, sizeof(serverSrc));
             std::cout << "<<< server->proxy from " << serverSrc << ":" << ntohs(src.sin_port) << "  len=" << recvLen << "\n";
-
             // prune old clients
             auto now = std::chrono::steady_clock::now();
             clients.erase(std::remove_if(clients.begin(), clients.end(),
@@ -565,7 +264,6 @@ int main(int argc, char* argv[]) {
                 char destStr[INET_ADDRSTRLEN];
                 inet_ntop(AF_INET, &destClient.sin_addr, destStr, sizeof(destStr));
                 int destPort = ntohs(destClient.sin_port);
-
                 // forward to client
                 int sent = sendto(s, (const char*)buf, recvLen, 0, (sockaddr*)&destClient, sizeof(destClient));
                 if (sent == SOCKET_ERROR) {
@@ -574,17 +272,13 @@ int main(int argc, char* argv[]) {
                 else {
                     std::cout << "[fwd] -> client " << destStr << ":" << destPort << " (" << sent << " bytes)\n";
                 }
-
                 // try decrypt and analyze server->client payload
                 if (samp_decrypt(buf, recvLen, ntohs(src.sin_port), 0)) {
                     int id = (unsigned char)decrBuffer[0];
                     std::cout << "[decr s->c] ID=" << id;
                     if (pkt_names.count(id)) std::cout << " (" << pkt_names[id] << ")";
                     std::cout << "\n";
-
                     // sync analysis from server
-                    allsync(decrBuffer + 1, recvLen - 1, id, true);
-
                     std::cout << "decrypted pkt dump:\n";
                     hexdump(decrBuffer, recvLen - 1);
                 }
@@ -593,11 +287,9 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
-
         std::cout << "---\n";
         srcLen = sizeof(src);
     }
-
     closesocket(s);
     WSACleanup();
     return 0;
